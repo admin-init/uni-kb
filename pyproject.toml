@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "uni-kb"
+version = "0.1.0"
+description = "Knowledge Base library for codebase understanding — parsers, indexes, MCP server"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+readme = "README.md"
+dependencies = [
+    "chromadb>=0.5.0",
+    "networkx>=3.0",
+    "tree-sitter>=0.21.0",
+    "sqlite-utils>=3.35",
+    "pyyaml>=6.0",
+    "mcp>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+java = [
+    "tree-sitter-java>=0.21.0",
+]
+nodejs = [
+    "tree-sitter-typescript>=0.21.0",
+]
+
+[project.scripts]
+uni-kb = "uni_kb.cli:main"
+
+[project.entry-points."uni_kb.parsers"]
+java   = "uni_kb.parsers.java:register"
+nodejs = "uni_kb.parsers.nodejs:register"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uni_kb"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

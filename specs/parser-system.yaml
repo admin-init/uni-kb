@@ -1,0 +1,207 @@
+# Parser System Specification
+# uni-kb — Knowledge Base Library
+# Phase: M1-parser-system
+# Version: 0.1.0
+
+spec:
+  name: parser-system
+  milestone: M1-parser-system
+  repo: uni-kb
+  description: >
+    Abstract parser plugin interface, plugin registry with entry-point
+    discovery, and Java/Spring Boot parser implementation.
+
+components:
+
+  base:
+    file: parsers/base.py
+    description: Core data models and abstract parser plugin interface.
+    models:
+      - name: ParsedClass
+        description: Structured representation of a parsed class.
+        fields:
+          name: { type: str, required: true }
+          type: { type: str, description: "controller|service|entity|repository|component|configuration" }
+          annotations: { type: "list[str]", default: "[]" }
+          file_path: { type: str, default: '""' }
+          package: { type: str, default: '""' }
+          module: { type: str, default: '""' }
+          modifiers: { type: "list[str]", default: "[]" }
+          extends: { type: "str | None", default: null }
+          implements: { type: "list[str]", default: "[]" }
+      - name: ParsedMethod
+        description: Structured representation of a parsed method.
+        fields:
+          name: { type: str, required: true }
+          class_name: { type: str, required: true }
+          params: { type: "list[dict[str, str]]", default: "[]" }
+          return_type: { type: str, default: '"void"' }
+          annotations: { type: "list[str]", default: "[]" }
+          modifiers: { type: "list[str]", default: "[]" }
+          throws: { type: "list[str]", default: "[]" }
+          body_hash: { type: str, default: '""' }
+      - name: ParsedEndpoint
+        description: Structured representation of an API endpoint.
+        fields:
+          http_method: { type: str, description: "GET|POST|PUT|PATCH|DELETE", required: true }
+          path: { type: str, required: true }
+          method_name: { type: str, required: true }
+          class_name: { type: str, required: true }
+          request_schema: { type: "str | None", default: null }
+          response_schema: { type: "str | None", default: null }
+          auth_required: { type: bool, default: false }
+          auth_permissions: { type: "list[str]", default: "[]" }
+          consumes: { type: "str | None", default: null }
+          produces: { type: "str | None", default: null }
+          description: { type: str, default: '""' }
+      - name: ParsedEntity
+        description: Structured representation of a database entity.
+        fields:
+          name: { type: str, required: true }
+          table_name: { type: str, required: true }
+          fields: { type: "list[dict[str, Any]]", default: "[]" }
+          annotations: { type: "list[str]", default: "[]" }
+          package: { type: str, default: '""' }
+          file_path: { type: str, default: '""' }
+          primary_keys: { type: "list[str]", default: "[]" }
+          indexes: { type: "list[dict[str, Any]]", default: "[]" }
+      - name: ParsedModule
+        description: Top-level source module information.
+        fields:
+          name: { type: str, required: true }
+          path: { type: str, required: true }
+          language: { type: str, required: true }
+          type: { type: str, default: '"module"' }
+          dependencies: { type: "list[str]", default: "[]" }
+      - name: ParseResult
+        description: Aggregate result of a parsing operation.
+        fields:
+          modules: { type: "list[ParsedModule]", default: "[]" }
+          classes: { type: "list[ParsedClass]", default: "[]" }
+          methods: { type: "list[ParsedMethod]", default: "[]" }
+          endpoints: { type: "list[ParsedEndpoint]", default: "[]" }
+          entities: { type: "list[ParsedEntity]", default: "[]" }
+          imports: { type: "list[dict[str, str]]", default: "[]" }
+          errors: { type: "list[str]", default: "[]" }
+          warnings: { type: "list[str]", default: "[]" }
+        methods:
+          merge: "Merge another ParseResult into this one. Returns self for chaining."
+
+    interface:
+      name: ParserPlugin
+      description: Abstract base class for all language parser plugins.
+      methods:
+        - name: language
+          returns: str
+          description: "Return language identifier: 'java', 'typescript', etc."
+          abstract: true
+        - name: detect
+          args: "file_path: str, source: str | None = None"
+          returns: bool
+          description: "Return True if this parser should handle the given file."
+          abstract: true
+        - name: parse
+          args: "file_path: str, source: str"
+          returns: ParseResult
+          description: "Parse source code into structured ParseResult."
+          abstract: true
+
+  registry:
+    file: parsers/registry.py
+    description: >
+      Plugin registry using Python entry points for discovery.
+      Supports Python 3.12+ importlib.metadata with fallback to importlib_metadata.
+    class: ParserRegistry
+    methods:
+      - name: discover
+        type: classmethod
+        description: "Scan entry_points(group='uni_kb.parsers') for parser plugins. Idempotent."
+        returns: None
+      - name: load_all
+        type: classmethod
+        description: "Discover and register all plugins. Logs warnings on load failures."
+        returns: None
+      - name: register
+        type: classmethod
+        description: "Register a parser plugin by language key."
+        args: "plugin: ParserPlugin"
+        returns: None
+      - name: get
+        type: classmethod
+        description: "Get all parsers for a language. Triggers auto-load."
+        args: "language: str"
+        returns: "list[ParserPlugin]"
+      - name: find
+        type: classmethod
+        description: "Find the first parser that detects a file."
+        args: "file_path: str, source: str | None = None"
+        returns: "ParserPlugin | None"
+      - name: all_plugins
+        type: classmethod
+        description: "Return all registered plugins."
+        returns: "list[ParserPlugin]"
+      - name: supported_languages
+        type: classmethod
+        description: "Return list of supported language identifiers."
+        returns: "list[str]"
+      - name: reset
+        type: classmethod
+        description: "Clear all registered plugins and scanned state. Used in tests."
+        returns: None
+
+  java_parsers:
+    directory: parsers/java/
+    description: >
+      Java/Spring Boot parser implementation. Four sub-parsers extract
+      structured information from Java source files and MyBatis XML.
+    entry_point: "uni_kb.parsers.java:register"
+    plugins:
+      - name: JavaControllerParser
+        file: controller.py
+        language: java
+        detects: "@RestController, @Controller, @RequestMapping"
+        extracts:
+          - Class info (name, package, extends, implements)
+          - HTTP endpoints (@GetMapping, @PostMapping, @PutMapping, @DeleteMapping, @PatchMapping, @RequestMapping)
+          - Path construction from class-prefix + method-path
+          - Auth annotations (@PreAuthorize, @Secured, @RolesAllowed, @SaCheckPermission, @SaCheckRole)
+          - Produces/consumes media types
+      - name: JavaServiceParser
+        file: service.py
+        language: java
+        detects: "@Service, @Component, @Repository"
+        extracts:
+          - Class info (name, type, package, extends, implements)
+          - Method signatures with parameter types and names
+          - Method body SHA256 hashes
+          - Method modifiers (public, static, final, etc.)
+          - Import statements
+      - name: JavaEntityParser
+        file: entity.py
+        language: java
+        detects: "@Entity, @Table, @Document"
+        extracts:
+          - Table name from annotations or camel-to-snake fallback
+          - Fields with type, column name, constraints
+          - Primary key detection (@Id)
+          - Relationship annotations (@ManyToOne, @OneToMany, etc.)
+          - Column constraints (nullable, length, unique)
+          - Table-level indexes and unique constraints
+      - name: JavaMapperParser
+        file: mapper.py
+        language: java
+        detects: MyBatis XML namespace or @Mapper/@Repository Java interfaces
+        extracts:
+          - XML: <select|insert|update|delete> tags with id, resultType, parameterType
+          - XML: #{param} bindings from SQL
+          - Java: @Select|@Insert|@Update|@Delete annotated interface methods
+          - SQL operation to HTTP method mapping
+          - Endpoint path generation from method_id
+
+test_coverage:
+  tests/base: "ParseResult merge, dataclass defaults and field validation"
+  tests/registry: "discover from entry points, register, find, reset, repeated discover idempotence"
+  tests/java_controller: "detect @RestController/@Controller, parse endpoints with paths and auth"
+  tests/java_service: "detect @Service/@Component/@Repository, parse methods with params and hashes"
+  tests/java_entity: "detect @Entity/@Table, parse table name, fields, primary keys, indexes"
+  tests/java_mapper: "parse XML select/insert/update/delete, parse Java @Mapper interface methods"
