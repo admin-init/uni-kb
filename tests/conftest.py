@@ -172,6 +172,199 @@ def mapper_java_source() -> str:
     return SAMPLE_MAPPER_JAVA
 
 
+SAMPLE_EXPRESS_ROUTES = """\
+const express = require('express');
+const router = express.Router();
+const auth = require('../middleware/auth');
+
+router.use('/api/users');
+
+router.get('/:id', auth, (req, res) => {
+    res.json({ id: req.params.id });
+});
+
+router.post('/', auth.hasRole('ADMIN'), (req, res) => {
+    res.status(201).json(req.body);
+});
+
+router.put('/:id', verifyToken, (req, res) => {
+    res.json({ updated: true });
+});
+
+router.delete('/:id', (req, res) => {
+    res.status(204).send();
+});
+
+module.exports = router;
+"""
+
+SAMPLE_NESTJS_CONTROLLER = """\
+import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
+
+@Controller('users')
+export class UserController {
+
+    @Get(':id')
+    async getUser(@Param('id') id: string) {
+        return { id };
+    }
+
+    @Post()
+    async createUser(@Body() body: any) {
+        return body;
+    }
+
+    @Put(':id')
+    async updateUser(@Param('id') id: string, @Body() body: any) {
+        return { id, ...body };
+    }
+
+    @Delete(':id')
+    async deleteUser(@Param('id') id: string) {
+        return { deleted: true };
+    }
+}
+"""
+
+SAMPLE_NESTJS_SERVICE = """\
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { User } from './user.entity';
+
+@Injectable()
+export class UserService {
+
+    constructor(
+        @InjectRepository(User)
+        private userRepository: Repository<User>,
+    ) {}
+
+    async findById(id: number): Promise<User> {
+        return this.userRepository.findOne({ where: { id } });
+    }
+
+    async create(data: Partial<User>): Promise<User> {
+        return this.userRepository.save(data);
+    }
+
+    async delete(id: number): Promise<void> {
+        await this.userRepository.delete(id);
+    }
+}
+"""
+
+SAMPLE_SEQUELIZE_MODEL = """\
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+
+const User = sequelize.define('users', {
+    id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+    },
+    username: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        unique: true,
+    },
+    email: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        unique: true,
+        field: 'email_address',
+    },
+    departmentId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+            model: 'departments',
+            key: 'id',
+        },
+    },
+});
+
+module.exports = User;
+"""
+
+SAMPLE_TYPEORM_ENTITY = """\
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+
+@Entity({ name: 'users' })
+export class User {
+
+    @PrimaryGeneratedColumn()
+    id: number;
+
+    @Column({ name: 'username', nullable: false, unique: true })
+    username: string;
+
+    @Column({ nullable: false, unique: true })
+    email: string;
+
+    @ManyToOne(() => Department)
+    @JoinColumn({ name: 'department_id' })
+    department: Department;
+}
+"""
+
+SAMPLE_MIDDLEWARE = """\
+const jwt = require('jsonwebtoken');
+
+function verifyToken(req, res, next) {
+    const token = req.headers['authorization'];
+    if (!token) return res.status(401).send('Unauthorized');
+    jwt.verify(token, process.env.SECRET, (err, decoded) => {
+        if (err) return res.status(403).send('Forbidden');
+        req.user = decoded;
+        next();
+    });
+}
+
+function hasRole(requiredRole) {
+    return (req, res, next) => {
+        if (!req.user || req.user.role !== requiredRole) {
+            return res.status(403).send('Forbidden');
+        }
+        next();
+    };
+}
+
+module.exports = { verifyToken, hasRole };
+"""
+
+
 @pytest.fixture
 def empty_result() -> ParseResult:
     return ParseResult()
+
+
+@pytest.fixture
+def express_source() -> str:
+    return SAMPLE_EXPRESS_ROUTES
+
+
+@pytest.fixture
+def nestjs_source() -> str:
+    return SAMPLE_NESTJS_CONTROLLER
+
+
+@pytest.fixture
+def nestjs_service_source() -> str:
+    return SAMPLE_NESTJS_SERVICE
+
+
+@pytest.fixture
+def sequelize_source() -> str:
+    return SAMPLE_SEQUELIZE_MODEL
+
+
+@pytest.fixture
+def typeorm_source() -> str:
+    return SAMPLE_TYPEORM_ENTITY
+
+
+@pytest.fixture
+def middleware_source() -> str:
+    return SAMPLE_MIDDLEWARE
