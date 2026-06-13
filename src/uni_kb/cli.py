@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -191,6 +193,101 @@ def serve(project: str) -> None:
         click.echo("Knowledge base not found. Run 'uni-kb init --project <path>' first.", err=True)
         return
     asyncio.run(run_mcp_server(str(kb_dir)))
+
+
+def _reparse_changed_files(project_path: Path, kb_dir: Path, store: SQLiteStore, chroma: ChromaIndexes) -> int:
+    db = store.db
+    if "kb_metadata" not in db.table_names():
+        db["kb_metadata"].create({"key": str, "value": str}, pk="key")
+    last_scan_str = db["kb_metadata"].get("last_scan")
+    last_scan = float(last_scan_str["value"]) if last_scan_str else 0.0
+
+    latest_mtime = last_scan
+    count = 0
+    for java_file in _walk_source_files(project_path, {".java", ".xml", ".js", ".ts"}):
+        try:
+            mtime = os.path.getmtime(str(java_file))
+            if mtime <= last_scan:
+                continue
+            latest_mtime = max(latest_mtime, mtime)
+            source = java_file.read_text(encoding="utf-8")
+        except Exception:
+            continue
+
+        plugin = ParserRegistry.find(str(java_file), source)
+        if plugin is None:
+            continue
+
+        result = plugin.parse(str(java_file), source)
+        module_name = _resolve_module_name(java_file, project_path)
+        store.ingest_parse_result(result, module_name=module_name)
+        chroma.index_code(result, source, language=plugin.language())
+        count += 1
+        logger.info(f"  Updated: {java_file.name}")
+
+    db["kb_metadata"].upsert({"key": "last_scan", "value": str(latest_mtime)}, pk="key")
+    return count
+
+
+@main.command()
+@click.option("--project", required=True, type=click.Path(exists=True), help="Path to project")
+def update(project: str) -> None:
+    """Re-parse changed files and update the knowledge base."""
+    project_path = Path(project).resolve()
+    kb_dir = project_path / ".uni-kb"
+    db_path = kb_dir / "store.db"
+    chroma_dir = kb_dir / "chroma"
+    graph_path = kb_dir / "graph.gml"
+
+    if not db_path.exists():
+        click.echo("Knowledge base not found. Run 'uni-kb init --project <path>' first.", err=True)
+        return
+
+    store = SQLiteStore(str(db_path))
+    chroma = ChromaIndexes(str(chroma_dir))
+    chroma.ensure_all()
+
+    count = _reparse_changed_files(project_path, kb_dir, store, chroma)
+
+    graph = CodeGraph()
+    all_results: list[ParseResult] = []
+    graph.build_from_parse_results(all_results)
+    graph.save(str(graph_path))
+
+    click.echo(f"Updated {count} files.")
+
+
+@main.command()
+@click.option("--project", required=True, type=click.Path(exists=True), help="Path to project")
+@click.option("--interval", default=2, type=int, help="Polling interval in seconds")
+def watch(project: str, interval: int) -> None:
+    """Watch project files for changes and update the KB in real time."""
+    project_path = Path(project).resolve()
+    kb_dir = project_path / ".uni-kb"
+    db_path = kb_dir / "store.db"
+    chroma_dir = kb_dir / "chroma"
+
+    if not db_path.exists():
+        click.echo("Knowledge base not found. Run 'uni-kb init --project <path>' first.", err=True)
+        return
+
+    store = SQLiteStore(str(db_path))
+    chroma = ChromaIndexes(str(chroma_dir))
+    chroma.ensure_all()
+
+    click.echo(f"Watching {project_path} for changes (polling every {interval}s)...")
+    click.echo("Press Ctrl+C to stop.")
+
+    try:
+        while True:
+            count = _reparse_changed_files(project_path, kb_dir, store, chroma)
+            if count:
+                graph = CodeGraph()
+                graph.build_from_parse_results([])
+                graph.save(str(kb_dir / "graph.gml"))
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        click.echo("\nStopped.")
 
 
 if __name__ == "__main__":

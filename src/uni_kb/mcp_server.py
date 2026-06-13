@@ -210,6 +210,19 @@ def create_mcp_server(kb_dir: str) -> Server:
         )
         return result.stdout or result.stderr
 
+    @app.tool()
+    async def update_kb() -> str:
+        from uni_kb.cli import _reparse_changed_files
+        project_path = Path(kb_dir).parent
+        s = SQLiteStore(str(db_path))
+        c = ChromaIndexes(str(chroma_dir))
+        c.ensure_all()
+        count = _reparse_changed_files(project_path, Path(kb_dir), s, c)
+        g = CodeGraph()
+        g.build_from_parse_results([])
+        g.save(str(graph_path))
+        return json.dumps({"updated": count, "total_nodes": g.node_count()})
+
     return app
 
 
