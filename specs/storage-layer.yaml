@@ -1,0 +1,307 @@
+# storage-layer.yaml — M2: Knowledge Base Storage Layer
+# SDD spec per AGENTS.md methodology
+
+component: storage-layer
+milestone: M2-storage-layer
+repo: uni-kb
+version: "0.1.0"
+
+overview: >
+  The storage layer ingests ParseResult objects from the parser system and
+  stores structured code knowledge across three backends: SQLite (relational),
+  ChromaDB (semantic), and NetworkX (graph).
+
+sqlite_store:
+  file: store/sqlite_store.py
+  class: SQLiteStore
+  tables:
+    - name: modules
+      columns:
+        - name: id
+          type: INTEGER
+          pk: true
+        - name: name
+          type: TEXT
+          unique: true
+          not_null: true
+        - name: path
+          type: TEXT
+          not_null: true
+        - name: language
+          type: TEXT
+          not_null: true
+        - name: type
+          type: TEXT
+    - name: classes
+      columns:
+        - name: id
+          type: INTEGER
+          pk: true
+        - name: name
+          type: TEXT
+          not_null: true
+        - name: module_id
+          type: INTEGER
+          fk: modules.id
+        - name: type
+          type: TEXT
+          not_null: true
+        - name: annotations
+          type: TEXT
+        - name: file_path
+          type: TEXT
+        - name: package
+          type: TEXT
+        - name: extends
+          type: TEXT
+        - name: implements
+          type: TEXT
+      unique:
+        - name
+        - module_id
+    - name: methods
+      columns:
+        - name: id
+          type: INTEGER
+          pk: true
+        - name: name
+          type: TEXT
+          not_null: true
+        - name: class_id
+          type: INTEGER
+          fk: classes.id
+          not_null: true
+        - name: params
+          type: TEXT
+        - name: return_type
+          type: TEXT
+        - name: annotations
+          type: TEXT
+        - name: body_hash
+          type: TEXT
+      unique:
+        - name
+        - class_id
+    - name: api_endpoints
+      columns:
+        - name: id
+          type: INTEGER
+          pk: true
+        - name: method_id
+          type: INTEGER
+          fk: methods.id
+          unique: true
+        - name: class_id
+          type: INTEGER
+          fk: classes.id
+        - name: http_method
+          type: TEXT
+          not_null: true
+        - name: path
+          type: TEXT
+          not_null: true
+        - name: method_name
+          type: TEXT
+        - name: request_schema
+          type: TEXT
+        - name: response_schema
+          type: TEXT
+        - name: auth_required
+          type: INTEGER
+        - name: consumes
+          type: TEXT
+        - name: produces
+          type: TEXT
+        - name: description
+          type: TEXT
+    - name: db_tables
+      columns:
+        - name: id
+          type: INTEGER
+          pk: true
+        - name: name
+          type: TEXT
+          unique: true
+          not_null: true
+        - name: entity_name
+          type: TEXT
+        - name: schema
+          type: TEXT
+        - name: package
+          type: TEXT
+        - name: file_path
+          type: TEXT
+    - name: db_columns
+      columns:
+        - name: id
+          type: INTEGER
+          pk: true
+        - name: table_id
+          type: INTEGER
+          fk: db_tables.id
+          not_null: true
+        - name: name
+          type: TEXT
+          not_null: true
+        - name: type
+          type: TEXT
+        - name: nullable
+          type: INTEGER
+        - name: default_value
+          type: TEXT
+        - name: unique
+          type: INTEGER
+        - name: length
+          type: INTEGER
+        - name: fk_ref
+          type: TEXT
+        - name: is_primary_key
+          type: INTEGER
+        - name: relationship_type
+          type: TEXT
+    - name: frontend_components
+      columns:
+        - name: id
+          type: INTEGER
+          pk: true
+        - name: name
+          type: TEXT
+          not_null: true
+        - name: path
+          type: TEXT
+        - name: type
+          type: TEXT
+          not_null: true
+        - name: api_calls
+          type: TEXT
+        - name: props
+          type: TEXT
+    - name: auth_permissions
+      columns:
+        - name: id
+          type: INTEGER
+          pk: true
+        - name: endpoint_id
+          type: INTEGER
+          fk: api_endpoints.id
+          not_null: true
+        - name: permission
+          type: TEXT
+        - name: role
+          type: TEXT
+
+  public_api:
+    - method: create_tables()
+      description: Creates all 8 tables with FKs if not exists
+    - method: ingest_parse_result
+      params: "result: ParseResult"
+      description: Dispatches parsed data to appropriate tables via upsert
+    - method: get_class
+      params: id
+      returns: dict
+    - method: get_method
+      params: id
+      returns: dict
+    - method: get_endpoint
+      params: id
+      returns: dict
+    - method: list_classes
+      returns: list
+    - method: list_methods
+      returns: list
+    - method: list_endpoints
+      returns: list
+    - method: list_entities
+      returns: list
+    - method: list_columns
+      params: table_id=None
+      returns: list
+    - method: get_db_schema
+      returns: str
+      description: Generates CREATE TABLE DDL from stored entities
+
+chroma_indexes:
+  file: store/chroma_indexes.py
+  class: ChromaIndexes
+  collections:
+    code:
+      - code_java_controller
+      - code_java_service
+      - code_java_entity
+      - code_java_mapper
+      - code_typescript_admin
+      - code_typescript_game
+    specs:
+      - specs_api
+      - specs_business_logic
+      - specs_data_model
+      - specs_auth
+      - specs_config
+    other:
+      - db_schema
+      - project_docs
+      - migration_checklists
+  embedding_function: chromadb.utils.embedding_functions.DefaultEmbeddingFunction
+  public_api:
+    - method: index_code
+      params: result, source, language
+      description: Indexes code into appropriate collections by type
+    - method: index_db_schema
+      params: schema_text
+      description: Indexes DDL text into db_schema collection
+    - method: search
+      params: "collection, query, k"
+      returns: list
+      description: Semantic vector search
+    - method: count
+      params: collection
+      returns: int
+
+code_graph:
+  file: store/code_graph.py
+  class: CodeGraph
+  node_types:
+    - Module
+    - Class
+    - Method
+    - APIEndpoint
+    - DBTable
+    - DBColumn
+    - VueComponent
+    - CocosComponent
+  edge_types:
+    structural:
+      - HAS_METHOD
+      - EXTENDS
+      - IMPLEMENTS
+      - FK_TO
+    routing:
+      - ROUTES_TO
+      - MAPS_TO
+    dependency:
+      - CALLS
+      - INJECTS
+      - IMPORTS
+    operation:
+      - MIGRATES_TO
+      - BLOCKED_BY
+      - VERIFIED_AGAINST
+  public_api:
+    - method: build_from_parse_results
+      params: "results: list[ParseResult]"
+    - method: get_dependencies
+      params: node_id
+      returns: list
+    - method: get_dependents
+      params: node_id
+      returns: list
+    - method: topological_sort
+      returns: list
+    - method: save
+      params: path
+    - method: load
+      params: path
+    - method: node_count
+      returns: int
+    - method: edge_count
+      returns: int

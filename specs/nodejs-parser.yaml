@@ -1,0 +1,115 @@
+# nodejs-parser.yaml — M3: Node.js/Express/NestJS Parser Plugins
+# SDD spec per AGENTS.md methodology
+
+component: nodejs-parser
+milestone: M3-nodejs-parser
+repo: uni-kb
+version: "0.1.0"
+
+overview: >
+  Four parser plugins for JavaScript/TypeScript backend frameworks.
+  Implements the ParserPlugin interface and produces ParseResult objects
+  compatible with the storage layer and MCP server.
+
+route_parser:
+  file: parsers/nodejs/route.py
+  class: NodejsRouteParser
+  language: nodejs
+  frameworks:
+    - express
+    - nestjs
+  detection:
+    - .js or .ts extension
+    - Express style: router.get/post/put/patch/delete(...) or app.get(...)
+    - NestJS style: "decorators like @Get(), @Post(), @Put(), @Patch(), @Delete(), @Controller()"
+  output:
+    classes:
+      - type: controller
+        annotations:
+          - Express
+          - NestJS
+    endpoints:
+      - field: http_method
+        values: GET, POST, PUT, PATCH, DELETE
+      - field: path
+        description: joined prefix path + method path
+      - field: method_name
+        description: derived from verb and path
+      - field: auth_required
+        type: bool
+      - field: auth_permissions
+        type: list
+        description: extracted from hasRole/hasPermission calls
+
+service_parser:
+  file: parsers/nodejs/service.py
+  class: NodejsServiceParser
+  language: nodejs
+  detection:
+    - .js or .ts extension
+    - "class declaration with @Injectable() decorator"
+  output:
+    classes:
+      - type: service
+        annotations:
+          - Injectable
+      - type: configuration
+        annotations:
+          - Module
+    methods:
+      - field: name
+        description: method name, skipping decorator lines
+      - field: params
+        description: typed parameter list
+      - field: body_hash
+        description: SHA-256 truncated to 12 chars
+    imports:
+      - field: qualified_name
+        description: module path from import or require
+
+model_parser:
+  file: parsers/nodejs/model.py
+  class: NodejsModelParser
+  language: nodejs
+  frameworks:
+    - sequelize
+    - typeorm
+  detection:
+    - .js or .ts extension
+    - Sequelize: sequelize.define() or Model.init()
+    - TypeORM: "@Entity() decorator"
+  output:
+    entities:
+      - field: name
+        description: class name or define() first argument
+      - field: table_name
+        description: "from @Entity({name}) or sequelize.define('name')"
+      - field: fields
+        subfields:
+          - name
+          - column_name
+          - type
+          - nullable
+          - unique
+          - fk_ref
+      - field: primary_keys
+
+middleware_parser:
+  file: parsers/nodejs/middleware.py
+  class: NodejsMiddlewareParser
+  language: nodejs
+  detection:
+    - .js or .ts extension
+    - Function names with auth/guard/jwt/permission keywords
+    - "NestJS Guard class with @Injectable() and canActivate"
+  output:
+    classes:
+      - type: component
+        annotations:
+          - JWT
+          - NestGuard
+          - Session
+          - CustomAuth
+    methods:
+      - name: canActivate, use, validate, verifyToken, authorize
+      - return_type: boolean
