@@ -14,8 +14,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.11"
-      - run: uv pip install --system ruff
-      - run: ruff check src/
+      - run: uv run --with ruff ruff check src/
 
   test:
     needs: lint
@@ -28,5 +27,5 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - run: uv pip install --system -e ".[dev]"
-      - run: python -m pytest -v
+      - run: uv pip install -e ".[dev]"
+      - run: uv run pytest -v
