@@ -1,0 +1,100 @@
+# generators-mcp.yaml — M4: Spec Generators + MCP Server
+# SDD spec per AGENTS.md methodology
+
+component: generators-mcp
+milestone: M4-generators-mcp
+repo: uni-kb
+version: "0.1.0"
+
+overview: >
+  Six spec generators consume KB data from SQLiteStore/CodeGraph to produce YAML/Markdown specs.
+  The MCP server exposes 21 tools across 5 categories via stdio transport.
+  CLI commands: uni-kb generate, serve, update, watch.
+
+generators:
+  api_contract:
+    file: generators/api_contract.py
+    function: generate_api_contract
+    input: SQLiteStore (endpoints + classes + entities)
+    output: OpenAPI 3.0 YAML with paths, schemas, bearerAuth security
+    mcp_tool: get_api_contract
+  business_logic:
+    file: generators/business_logic.py
+    function: generate_business_logic_doc
+    input: SQLiteStore (classes + methods)
+    output: Markdown with class sections, method signatures, body hashes
+    mcp_tool: get_business_logic_doc
+  data_model:
+    file: generators/data_model.py
+    function: generate_data_model
+    input: SQLiteStore (entities + columns)
+    output: YAML with entity definitions, field types, PKs, FKs, constraints
+    mcp_tool: consumed by get_entity_spec
+  auth_matrix:
+    file: generators/auth_matrix.py
+    function: generate_auth_matrix
+    input: SQLiteStore (endpoints + auth_permissions)
+    output: YAML mapping endpoints to required permissions
+    mcp_tool: get_permission_matrix
+  config_catalog:
+    file: generators/config_catalog.py
+    function: generate_config_catalog
+    input: File system (YAML/.env files in project dir)
+    output: YAML with flattened key-value config entries
+    mcp_tool: consumed by get_config_value
+  migration_checklist:
+    file: generators/migration_checklist.py
+    function: generate_migration_checklist
+    input: CodeGraph (topological sort)
+    output: Markdown ordered checklist with dependency annotations
+    mcp_tool: get_migration_checklist
+
+mcp_server:
+  file: mcp_server.py
+  transport: stdio
+  categories:
+    code_exploration:
+      tools:
+        - search_code
+        - get_method_body
+        - get_class_structure
+        - find_endpoints
+        - find_usages
+    spec_retrieval:
+      tools:
+        - get_api_contract
+        - get_business_logic_doc
+        - verify_contract
+        - compare_api_responses
+    data_model:
+      tools:
+        - get_entity_spec
+        - get_db_schema
+        - get_column_info
+        - trace_fk_chain
+    auth_config:
+      tools:
+        - get_permission_matrix
+        - get_config_value
+        - get_config_catalog
+    operations:
+      tools:
+        - get_migration_checklist
+        - get_dependency_graph
+        - get_migration_status
+        - run_test_suite
+        - update_kb
+
+cli_commands:
+  init:
+    description: Initialize KB — walk source tree, parse files, populate all stores
+  generate:
+    description: Generate specs — api, logic, model, auth, config, migration
+    options: "--type all|api|logic|model|auth|config|migration"
+  serve:
+    description: Start MCP server via stdio transport
+  update:
+    description: Re-parse changed files only (mtimes vs last_scan)
+  watch:
+    description: Long-running file watcher, auto-updates KB on changes
+    options: "--interval N (seconds)"
