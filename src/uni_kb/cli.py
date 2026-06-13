@@ -11,6 +11,12 @@ from uni_kb.parsers.registry import ParserRegistry
 from uni_kb.store.chroma_indexes import ChromaIndexes
 from uni_kb.store.code_graph import CodeGraph
 from uni_kb.store.sqlite_store import SQLiteStore
+from uni_kb.generators.api_contract import generate_api_contract
+from uni_kb.generators.business_logic import generate_business_logic_doc
+from uni_kb.generators.data_model import generate_data_model
+from uni_kb.generators.auth_matrix import generate_auth_matrix
+from uni_kb.generators.config_catalog import generate_config_catalog
+from uni_kb.generators.migration_checklist import generate_migration_checklist
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("uni_kb")
@@ -112,6 +118,79 @@ def _resolve_module_name(file_path: Path, project_path: Path) -> str:
     except ValueError:
         pass
     return file_path.stem
+
+
+@main.command()
+@click.option("--project", required=True, type=click.Path(exists=True), help="Path to project")
+@click.option("--output", "-o", default=None, type=click.Path(), help="Output directory for generated specs")
+@click.option("--type", "gen_type", default="all", help="Generator type: all, api, logic, model, auth, config, migration")
+def generate(project: str, output: str | None, gen_type: str) -> None:
+    """Generate specifications from the knowledge base."""
+    project_path = Path(project).resolve()
+    kb_dir = project_path / ".uni-kb"
+    db_path = kb_dir / "store.db"
+    graph_path = kb_dir / "graph.gml"
+
+    if not db_path.exists():
+        click.echo("Knowledge base not found. Run 'uni-kb init --project <path>' first.", err=True)
+        return
+
+    out_dir = Path(output).resolve() if output else project_path
+
+    store = SQLiteStore(str(db_path))
+    graph = CodeGraph()
+    if graph_path.exists():
+        graph.load(str(graph_path))
+
+    def _write(name: str, content: str) -> None:
+        path = out_dir / f"{name}.yaml"
+        path.write_text(content, encoding="utf-8")
+        click.echo(f"  {path}")
+
+    if gen_type in ("all", "api"):
+        click.echo("Generating API contract...")
+        _write("api-contract", generate_api_contract(store))
+
+    if gen_type in ("all", "logic"):
+        click.echo("Generating business logic docs...")
+        path = out_dir / "business-logic.md"
+        path.write_text(generate_business_logic_doc(store), encoding="utf-8")
+        click.echo(f"  {path}")
+
+    if gen_type in ("all", "model"):
+        click.echo("Generating data model...")
+        _write("data-model", generate_data_model(store))
+
+    if gen_type in ("all", "auth"):
+        click.echo("Generating auth matrix...")
+        _write("auth-matrix", generate_auth_matrix(store))
+
+    if gen_type in ("all", "config"):
+        click.echo("Generating config catalog...")
+        _write("config-catalog", generate_config_catalog(str(project_path)))
+
+    if gen_type in ("all", "migration"):
+        click.echo("Generating migration checklist...")
+        path = out_dir / "migration-checklist.md"
+        path.write_text(generate_migration_checklist(graph), encoding="utf-8")
+        click.echo(f"  {path}")
+
+    click.echo("Done.")
+
+
+@main.command()
+@click.option("--project", required=True, type=click.Path(exists=True), help="Path to project")
+def serve(project: str) -> None:
+    """Start MCP server for the project."""
+    from uni_kb.mcp_server import run_mcp_server
+    import asyncio
+
+    project_path = Path(project).resolve()
+    kb_dir = project_path / ".uni-kb"
+    if not (kb_dir / "store.db").exists():
+        click.echo("Knowledge base not found. Run 'uni-kb init --project <path>' first.", err=True)
+        return
+    asyncio.run(run_mcp_server(str(kb_dir)))
 
 
 if __name__ == "__main__":
