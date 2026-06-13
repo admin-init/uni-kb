@@ -12,9 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-        with:
-          python-version: "3.11"
-      - run: uv run --with ruff ruff check src/
+      - run: uvx ruff check src/
 
   test:
     needs: lint
@@ -28,4 +26,5 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: uv pip install -e ".[dev]"
+        timeout-minutes: 10
       - run: uv run pytest -v
