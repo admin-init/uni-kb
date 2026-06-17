@@ -5,7 +5,6 @@ from uni_kb.parsers.base import (
     ParsedEndpoint,
     ParsedEntity,
     ParsedMethod,
-    ParsedModule,
     ParseResult,
     ParserPlugin,
 )
@@ -22,8 +21,8 @@ class StubParser(ParserPlugin):
 
     def parse(self, file_path: str, source: str) -> ParseResult:
         result = ParseResult()
-        result.modules.append(
-            ParsedModule(name="test_module", path=file_path, language="test")
+        result.classes.append(
+            ParsedClass(name="TestClass", type="service")
         )
         return result
 
@@ -131,7 +130,6 @@ class TestParsedEntity:
 class TestParseResult:
     def test_empty(self):
         result = ParseResult()
-        assert result.modules == []
         assert result.classes == []
         assert result.methods == []
         assert result.endpoints == []
@@ -185,5 +183,5 @@ class TestParserPlugin:
         plugin = StubParser()
         result = plugin.parse("/path/to/Module.test", "source content")
         assert isinstance(result, ParseResult)
-        assert len(result.modules) == 1
-        assert result.modules[0].name == "test_module"
+        assert len(result.classes) == 1
+        assert result.classes[0].name == "TestClass"

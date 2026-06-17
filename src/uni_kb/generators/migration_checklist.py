@@ -19,12 +19,10 @@ def generate_migration_checklist(graph: CodeGraph, title: str = "Migration Plan"
     except Exception:
         order = list(graph.graph.nodes())
 
-    index = 0
     for i, node_id in enumerate(order, 1):
         node_data = graph.graph.nodes.get(node_id, {})
         node_type = node_data.get("type", "Unknown")
         name = node_data.get("name", node_id)
-        index += 1
         lines.append(f"{i}. **[`{node_type}`]** {name}")
 
         deps = graph.get_dependencies(node_id)
