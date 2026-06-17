@@ -58,17 +58,7 @@ class ParsedEntity:
 
 
 @dataclass
-class ParsedModule:
-    name: str
-    path: str
-    language: str
-    type: str = "module"
-    dependencies: list[str] = field(default_factory=list)
-
-
-@dataclass
 class ParseResult:
-    modules: list[ParsedModule] = field(default_factory=list)
     classes: list[ParsedClass] = field(default_factory=list)
     methods: list[ParsedMethod] = field(default_factory=list)
     endpoints: list[ParsedEndpoint] = field(default_factory=list)
@@ -78,7 +68,6 @@ class ParseResult:
     warnings: list[str] = field(default_factory=list)
 
     def merge(self, other: ParseResult) -> ParseResult:
-        self.modules.extend(other.modules)
         self.classes.extend(other.classes)
         self.methods.extend(other.methods)
         self.endpoints.extend(other.endpoints)

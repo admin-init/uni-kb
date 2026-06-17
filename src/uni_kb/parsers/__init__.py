@@ -5,7 +5,6 @@ from uni_kb.parsers.base import (
     ParsedEndpoint,
     ParsedEntity,
     ParsedMethod,
-    ParsedModule,
     ParseResult,
     ParserPlugin,
 )
@@ -16,7 +15,6 @@ __all__ = [
     "ParsedEndpoint",
     "ParsedEntity",
     "ParsedMethod",
-    "ParsedModule",
     "ParseResult",
     "ParserPlugin",
     "ParserRegistry",
