@@ -124,19 +124,6 @@ class SQLiteStore:
             not_null={"name", "table_id"},
         )
 
-        self.db["frontend_components"].create(
-            {
-                "id": int,
-                "name": str,
-                "path": str,
-                "type": str,
-                "api_calls": str,
-                "props": str,
-            },
-            pk="id",
-            not_null={"name", "type"},
-        )
-
         self.db["auth_permissions"].create(
             {
                 "id": int,

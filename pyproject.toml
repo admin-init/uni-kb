@@ -12,7 +12,6 @@ readme = "README.md"
 dependencies = [
     "chromadb>=0.5.0",
     "networkx>=3.0",
-    "tree-sitter>=0.21.0",
     "sqlite-utils>=3.35",
     "pyyaml>=6.0",
     "mcp>=1.0.0",
@@ -23,12 +22,6 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
-]
-java = [
-    "tree-sitter-java>=0.21.0",
-]
-nodejs = [
-    "tree-sitter-typescript>=0.21.0",
 ]
 
 [project.scripts]
