@@ -30,18 +30,22 @@ class NodejsMiddlewareParser(ParserPlugin):
 
         class_name = _extract_middleware_name(source, file_path)
         methods = self._extract_methods(source, class_name)
-        self._extract_permissions(source)
+        permissions = self._extract_permissions(source)
         auth_type = self._detect_auth_type(source)
+
+        annotations = [auth_type]
+        if permissions:
+            annotations.extend(f"perm:{p}" for p in permissions)
 
         return ParseResult(
             classes=[ParsedClass(
                 name=class_name,
                 type="component",
-                annotations=[auth_type],
+                annotations=annotations,
                 file_path=file_path,
             )],
             methods=methods,
-            endpoints=[],  # middleware doesn't produce endpoints directly
+            endpoints=[],
         )
 
     def _extract_methods(self, source: str, class_name: str) -> list[ParsedMethod]:
