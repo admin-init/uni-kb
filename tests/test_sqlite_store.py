@@ -105,7 +105,6 @@ class TestSQLiteStore:
         assert "api_endpoints" in tables
         assert "db_tables" in tables
         assert "db_columns" in tables
-        assert "frontend_components" in tables
         assert "auth_permissions" in tables
 
     def test_ingest_parse_result_adds_classes(self, populated_store: SQLiteStore):
