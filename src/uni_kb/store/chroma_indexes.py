@@ -18,8 +18,10 @@ COLLECTION_NAMES = [
     "code_java_service",
     "code_java_entity",
     "code_java_mapper",
-    "code_typescript_admin",
-    "code_typescript_game",
+    "code_nodejs_route",
+    "code_nodejs_service",
+    "code_nodejs_model",
+    "code_nodejs_middleware",
     "specs_api",
     "specs_business_logic",
     "specs_data_model",
@@ -60,22 +62,43 @@ class ChromaIndexes:
             collections["code_java_service"] = []
             collections["code_java_entity"] = []
             collections["code_java_mapper"] = []
+        elif language == "nodejs":
+            collections["code_nodejs_route"] = []
+            collections["code_nodejs_service"] = []
+            collections["code_nodejs_model"] = []
+            collections["code_nodejs_middleware"] = []
+        else:
+            return
 
         for cls in result.classes:
             doc = _class_to_doc(cls)
-            if cls.type == "controller":
-                collections.get("code_java_controller", []).append(doc)
-            elif cls.type in ("service", "repository", "component"):
-                collections.get("code_java_service", []).append(doc)
+            if language == "java":
+                if cls.type == "controller":
+                    collections["code_java_controller"].append(doc)
+                elif cls.type in ("service", "repository", "component"):
+                    collections["code_java_service"].append(doc)
+            elif language == "nodejs":
+                if cls.type == "controller":
+                    collections["code_nodejs_route"].append(doc)
+                elif cls.type == "service":
+                    collections["code_nodejs_service"].append(doc)
+                elif cls.type == "component":
+                    collections["code_nodejs_middleware"].append(doc)
 
         for endpoint in result.endpoints:
             doc = _endpoint_to_doc(endpoint)
-            trg = "code_java_controller" if _is_rest_endpoint(endpoint) else "code_java_mapper"
-            collections[trg].append(doc)
+            if language == "java":
+                trg = "code_java_controller" if _is_rest_endpoint(endpoint) else "code_java_mapper"
+                collections[trg].append(doc)
+            elif language == "nodejs":
+                collections["code_nodejs_route"].append(doc)
 
         for entity in result.entities:
             doc = _entity_to_doc(entity)
-            collections.get("code_java_entity", []).append(doc)
+            if language == "java":
+                collections.get("code_java_entity", []).append(doc)
+            elif language == "nodejs":
+                collections["code_nodejs_model"].append(doc)
 
         for coll_name, docs in collections.items():
             if not docs:
