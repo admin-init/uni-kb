@@ -368,3 +368,16 @@ def typeorm_source() -> str:
 @pytest.fixture
 def middleware_source() -> str:
     return SAMPLE_MIDDLEWARE
+
+
+@pytest.fixture
+def petclinic_path():
+    """Path to spring-petclinic-rest test fixture project."""
+    from pathlib import Path
+    p = (
+        Path(__file__).resolve().parent.parent.parent
+        / "tests" / "spring-petclinic-rest"
+    )
+    if not p.exists():
+        pytest.skip("spring-petclinic-rest fixture not found")
+    return str(p)

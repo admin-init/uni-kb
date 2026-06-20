@@ -14,7 +14,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uvx ruff check src/
 
-  test:
+  test-unit:
     needs: lint
     runs-on: ubuntu-latest
     strategy:
@@ -27,4 +27,19 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: uv pip install -e ".[dev]"
         timeout-minutes: 10
-      - run: uv run pytest -v
+      - run: uv run pytest -v -m "not integration and not acceptance and not e2e and not slow"
+
+  test-integration:
+    needs: lint
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv pip install -e ".[dev]"
+        timeout-minutes: 10
+      - run: uv run pytest -v -m "integration or acceptance"
